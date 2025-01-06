@@ -2,7 +2,7 @@ import mongoose, { Schema, model } from 'mongoose'
 import {
   CreateParams,
   Query,
-  UserEntity,
+  UserEntity, UserRole, UserStatus,
 } from '../../domain/entities/user.entity'
 
 export interface IUser {
@@ -13,6 +13,8 @@ export interface IUser {
   password: string
   phoneNumber: string
   verified: boolean
+  role: UserRole
+  status: UserStatus
   otpCode: string
   otpExpire: Date
   createdAt: Date
@@ -59,6 +61,8 @@ export const Mapper = {
       ...(query.lastName && { lastName: query.lastName }),
       ...(query.email && { email: query.email }),
       ...(query.password && { password: query.password }),
+      ...(query.role && { role: query.role }),
+      ...(query.status && { status: query.status }),
       ...(query.otpCode !== undefined && { otpCode: query.otpCode }),
       ...(query.otpExpire !== undefined && { otpExpire: query.otpExpire }),
       ...(query.phoneNumber && { phoneNumber: query.phoneNumber }),
@@ -77,6 +81,8 @@ export const Mapper = {
       model.verified,
       model.createdAt,
       model.updatedAt,
+      model.role,
+      model.status,
       model.otpCode,
       model.otpExpire,
       model.password,

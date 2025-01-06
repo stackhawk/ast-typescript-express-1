@@ -1,220 +1,253 @@
-import { Request, Response } from 'express'
-import { Types } from '../../di/types'
-import { getErrorMessage } from '../../core/utils/errorHandler'
+import {Request, Response} from 'express'
+import {Types} from '../../di/types'
+import {getErrorMessage} from '../../core/utils/errorHandler'
 import ResponseMessages from '../../core/utils/constants'
 import logger from '../../core/utils/logger'
 import utils from '../../core/utils/util'
 import IManagerRepo from '../../domain/repositories/managerRepo'
-import { inject, injectable } from 'inversify'
+import {inject, injectable} from 'inversify'
+import {ManagerEntity} from "../../domain/entities/manager.entity";
+
+interface ManagementMessage {
+    success: boolean;
+    message?: string;
+    manager?: ManagerEntity;
+
+    [key: string]: any;
+}
+
+interface AdminManagementMessage extends ManagementMessage {
+    details: any;
+    description: unknown;
+}
+
+interface ErrorMessage extends ManagementMessage {
+    error: string[] | string;
+}
 
 @injectable()
 export default class ManagerController {
-  constructor(
-    @inject(Types.IManagerRepo)
-    private repository: IManagerRepo
-  ) {}
-
-  createManager = async (req: Request, res: Response) => {
-    /*
-     * POST
-     *
-     * BASE_URL/manager
-     *
-     * manager in request body
-     */
-
-    const { username, password } = req.body
-    try {
-      // check if manager exists
-
-      const exists = await this.repository.isExists(username)
-
-      if (exists) {
-        return res.status(409).json({
-          success: false,
-          message: ResponseMessages.RES_MSG_MANAGER_ALREADY_EXISTS_EN,
-        })
-      }
-
-      const hash = await utils.generateHash(password)
-      const payload = { ...req.body, password: hash }
-
-      const manager = await this.repository.create(payload)
-
-      if (!manager) {
-        return res.status(500).json({
-          success: false,
-          message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-        })
-      }
-
-      // execlude manager password
-      const managerResponse = { ...manager, password: undefined }
-
-      res.status(201).json({
-        success: true,
-        message: ResponseMessages.RES_MSG_MANAGER_CREATED_SUCCESSFULLY_EN,
-        manager: managerResponse,
-      })
-    } catch (err) {
-      const errorMessage = getErrorMessage(err)
-      console.error(errorMessage)
-      logger.appendErrorLog(req.originalUrl, errorMessage)
-
-      return res.status(500).json({
-        success: false,
-        message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-      })
+    constructor(
+        @inject(Types.IManagerRepo)
+        private repository: IManagerRepo
+    ) {
     }
-  }
 
-  findAllManagers = async (req: Request, res: Response) => {
-    /*
-     * GET
-     *
-     * BASE_URL/manager
-     *
-     */
+    createManager = async (req: Request, res: Response) => {
+        /*
+         * POST
+         *
+         * BASE_URL/manager
+         *
+         * manager in request body
+         */
 
-    try {
-      const managers = await this.repository.findAll({})
+        const {username, password} = req.body
+        try {
+            // check if manager exists
 
-      res.status(200).json({
-        success: true,
-        totalResults: managers.length,
-        results: managers,
-      })
-    } catch (err) {
-      const errorMessage = getErrorMessage(err)
-      console.error(errorMessage)
-      logger.appendErrorLog(req.originalUrl, errorMessage)
+            const exists = await this.repository.isExists(username)
 
-      return res.status(500).json({
-        success: false,
-        message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-      })
-    }
-  }
+            if (exists) {
+                return res.status(409).json({
+                    success: false,
+                    message: ResponseMessages.RES_MSG_MANAGER_ALREADY_EXISTS_EN,
+                })
+            }
 
-  getManager = async (req: Request, res: Response) => {
-    /*
-     * GET
-     *
-     * BASE_URL/manager/{id}
-     *
-     */
+            const hash = await utils.generateHash(password)
+            const payload = {...req.body, password: hash}
 
-    try {
-      const id = req.params.id
+            const manager = await this.repository.create(payload)
 
-      const manager = await this.repository.findById(id)
+            if (!manager) {
+                return res.status(500).json({
+                    success: false,
+                    message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+                })
+            }
 
-      if (!manager) {
-        return res.status(404).json({
-          success: false,
-          message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
-        })
-      }
+            // execlude manager password
+            const managerResponse = {...manager, password: undefined}
 
-      res.status(200).json({
-        success: true,
-        manager,
-      })
-    } catch (err) {
-      const errorMessage = getErrorMessage(err)
-      console.error(errorMessage)
-      logger.appendErrorLog(req.originalUrl, errorMessage)
+            const adminResponse: AdminManagementMessage = {
+                success: true,
+                message: ResponseMessages.RES_MSG_MANAGER_CREATED_SUCCESSFULLY_EN,
+                manager: managerResponse,
+                details: "create",
+                description: "manager created successfully",
+            }
+            const createdManager = this.generateManagerResponse(adminResponse);
+            res.status(201).json(createdManager)
+        } catch (err) {
+            const errorMessage = getErrorMessage(err)
+            console.error(errorMessage)
+            logger.appendErrorLog(req.originalUrl, errorMessage)
 
-      return res.status(500).json({
-        success: false,
-        message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-      })
-    }
-  }
-
-  deleteManagerById = async (req: Request, res: Response) => {
-    /*
-     * Delete
-     *
-     * BASE_URL/manager/{id}
-     *
-     */
-
-    try {
-      const id = req.params.id
-
-      const deleted = await this.repository.deleteOne({ id })
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
-        })
-      }
-
-      res.status(200).json({
-        success: true,
-        message: ResponseMessages.RES_MSG_MANAGER_DELETED_SUCCESSFULLY_EN,
-      })
-    } catch (err) {
-      const errorMessage = getErrorMessage(err)
-      console.error(errorMessage)
-      logger.appendErrorLog(req.originalUrl, errorMessage)
-
-      return res.status(500).json({
-        success: false,
-        message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-      })
-    }
-  }
-
-  updateManager = async (req: Request, res: Response) => {
-    /*
-     * PATCH
-     *
-     * BASE_URL/manager/{id}
-     *
-     * updates in req.body
-     *
-     */
-
-    try {
-      const updates = req.body
-      const id = req.params.id
-
-      // check if updated username exists
-      if (updates.username) {
-        const exists = await this.repository.isExists(updates.username, id)
-
-        if (exists) {
-          return res.status(409).json({
-            success: false,
-            message: ResponseMessages.RES_MSG_MANAGER_ALREADY_EXISTS_EN,
-          })
+            return res.status(500).json({
+                success: false,
+                message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+            })
         }
-      }
-
-      const updatedManager = await this.repository.updateOne({ ...updates, id })
-
-      if (!updatedManager) {
-        return res.status(404).json({
-          success: false,
-          message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
-        })
-      }
-
-      res.status(201).json({
-        success: true,
-        manager: updatedManager,
-      })
-    } catch (err) {
-      const errorMessage = getErrorMessage(err)
-      console.error(errorMessage)
-      logger.appendErrorLog(req.originalUrl, errorMessage)
-
-      return res.status(500).json({
-        success: false,
-        message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
-      })
     }
-  }
+
+    findAllManagers = async (req: Request, res: Response) => {
+        /*
+         * GET
+         *
+         * BASE_URL/manager
+         *
+         */
+
+        try {
+            const managers = await this.repository.findAll({})
+
+            res.status(200).json({
+                success: true,
+                totalResults: managers.length,
+                results: managers,
+            })
+        } catch (err) {
+            const errorMessage = getErrorMessage(err)
+            console.error(errorMessage)
+            logger.appendErrorLog(req.originalUrl, errorMessage)
+
+            return res.status(500).json({
+                success: false,
+                message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+            })
+        }
+    }
+
+    getManager = async (req: Request, res: Response) => {
+        /*
+         * GET
+         *
+         * BASE_URL/manager/{id}
+         *
+         */
+
+        try {
+            const id = req.params.id
+
+            const manager = await this.repository.findById(id)
+
+            if (!manager) {
+                return res.status(404).json({
+                    success: false,
+                    message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
+                })
+            }
+
+            res.status(200).json({
+                success: true,
+                manager,
+            })
+        } catch (err) {
+            const errorMessage = getErrorMessage(err)
+            console.error(errorMessage)
+            logger.appendErrorLog(req.originalUrl, errorMessage)
+
+            return res.status(500).json({
+                success: false,
+                message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+            })
+        }
+    }
+
+    deleteManagerById = async (req: Request, res: Response) => {
+        /*
+         * Delete
+         *
+         * BASE_URL/manager/{id}
+         *
+         */
+
+        try {
+            const id = req.params.id
+
+            const deleted = await this.repository.deleteOne({id})
+            if (!deleted) {
+                return res.status(404).json({
+                    success: false,
+                    message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
+                })
+            }
+
+            res.status(200).json({
+                success: true,
+                message: ResponseMessages.RES_MSG_MANAGER_DELETED_SUCCESSFULLY_EN,
+            })
+        } catch (err) {
+            const errorMessage = getErrorMessage(err)
+            console.error(errorMessage)
+            logger.appendErrorLog(req.originalUrl, errorMessage)
+
+            return res.status(500).json({
+                success: false,
+                message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+            })
+        }
+    }
+
+    updateManager = async (req: Request, res: Response) => {
+        /*
+         * PATCH
+         *
+         * BASE_URL/manager/{id}
+         *
+         * updates in req.body
+         *
+         */
+
+        try {
+            const updates = req.body
+            const id = req.params.id
+
+            // check if updated username exists
+            if (updates.username) {
+                const exists = await this.repository.isExists(updates.username, id)
+
+                if (exists) {
+                    return res.status(409).json(this.generateManagerResponse({
+                        success: false,
+                        message: ResponseMessages.RES_MSG_MANAGER_ALREADY_EXISTS_EN,
+                    }))
+                }
+            }
+
+            const updatedManager = await this.repository.updateOne({...updates, id})
+
+            if (!updatedManager) {
+                return res.status(404).json(
+                    this.generateManagerResponse({
+                        success: false,
+                        message: ResponseMessages.RES_MSG_MANAGER_NOT_FOUND_EN,
+                    }))
+            }
+
+            res.status(201).json(this.generateManagerResponse({
+                success: true,
+                manager: updatedManager,
+            }))
+        } catch (err) {
+            const errorMessage = getErrorMessage(err)
+            console.error(errorMessage)
+            logger.appendErrorLog(req.originalUrl, errorMessage)
+
+            const error: ErrorMessage = {
+                success: false,
+                message: ResponseMessages.RES_MSG_AN_ERROR_OCCURRED_EN,
+                error: errorMessage,
+            }
+            return res.status(500).json(this.generateManagerResponse(error))
+        }
+    }
+
+    // bit of misdirection to incorporate some generics into the response types...
+    private generateManagerResponse = <RESPONSE extends ManagementMessage>(resp: RESPONSE): RESPONSE => {
+        return {
+            ...resp,
+        }
+    }
 }

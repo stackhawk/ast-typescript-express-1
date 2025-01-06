@@ -119,6 +119,4 @@ dist
 # vscode counter extension
 .VSCodeCounter
 
-
-
-
+.idea
